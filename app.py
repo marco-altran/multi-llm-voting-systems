@@ -6,6 +6,7 @@ from typing import List, Tuple, NamedTuple
 import argparse
 import json
 from collections import defaultdict
+import time
 
 # ANSI color codes for terminal output
 BLUE = "\033[94m"
@@ -22,8 +23,9 @@ class VoteResult(NamedTuple):
 
 load_dotenv()
 
-DEBUG = False
+DEBUG = True
 
+gemini_exp_1206 = create_ai_processor("google", "gemini-exp-1206")
 gemini_flash_2_thinking = create_ai_processor("google", "gemini-2.0-flash-thinking-exp-01-21")
 gemini_flash_1_5 = create_ai_processor("google", "gemini-1.5-flash")
 gpt4o_processor = create_ai_processor("openai", "gpt-4o")
@@ -31,22 +33,29 @@ o3_mini_processor = create_ai_processor("openai", "o3-mini")
 o1_processor = create_ai_processor("openai", "o1")
 # anthropic_processor = create_ai_processor("anthropic", "claude-3-5-sonnet-20240620")
 anthropic_processor = create_ai_processor("anthropic", "claude-3-5-sonnet-latest")
-deepseek_processor = create_ai_processor("openrouter", "deepseek/deepseek-r1:nitro")
+deepseek_r1_processor = create_ai_processor("openrouter", "deepseek/deepseek-r1:nitro")
+deepseek_r1_qwen_32b_processor = create_ai_processor("openrouter", "deepseek/deepseek-r1-distill-qwen-32b")
+deepseek_r1_llama_70b_processor = create_ai_processor("openrouter", "deepseek/deepseek-r1-distill-llama-70b")
 voters = [
+    # gemini_exp_1206,
     gemini_flash_2_thinking,
-    gemini_flash_1_5,
-    o3_mini_processor,
-    anthropic_processor,
-    o1_processor,
-    # deepseek_processor,
-    gpt4o_processor
+    # gemini_flash_1_5,
+    # o3_mini_processor,
+    # anthropic_processor,
+    # o1_processor,
+    # deepseek_r1_processor,
+    # deepseek_r1_qwen_32b_processor,
+    # deepseek_r1_llama_70b_processor,
+    # gpt4o_processor
 ]
 classifier_processor = gpt4o_processor
-llm_judge_processor = o3_mini_processor
+llm_judge_processor = gemini_flash_2_thinking
 # llm_judge_processor = gpt4o_processor
 
 
 async def get_vote(voter, prompt: str, image: bytes, is_benchmark: bool = False, classifier_processor = classifier_processor) -> VoteResult:
+    start_time = time.time()
+    
     if is_benchmark:
         reasoning = await voter.process_async(prompt, image)
         if DEBUG:
@@ -55,8 +64,10 @@ async def get_vote(voter, prompt: str, image: bytes, is_benchmark: bool = False,
     else:
         reasoning = await voter.process_async(prompt, image)
         vote = int(vote) if reasoning.isdigit() else reasoning
+    
+    elapsed_time = time.time() - start_time
     print(
-        f"{YELLOW}VENDOR:{END} {voter.get_vendor()} {YELLOW}MODEL:{END} {voter.get_model_name()} {YELLOW}VOTE:{END} {vote}")
+        f"{YELLOW}VENDOR:{END} {voter.get_vendor()} {YELLOW}MODEL:{END} {voter.get_model_name()} {YELLOW}VOTE:{END} {vote} {YELLOW}TIME:{END} {elapsed_time:.2f}s")
     return VoteResult(str(vote), str(reasoning), voter.get_vendor(), voter.get_model_name())
 
 
@@ -82,7 +93,7 @@ async def weighted_voting_system_votes(prompt: str, image: bytes, weights: List[
 
 # New function: llm_judge
 
-async def llm_judge(prompt: str, image: bytes, votes: List[VoteResult], processor=llm_judge_processor):
+async def llm_judge(prompt: str, image: bytes, votes: List[VoteResult], processor=llm_judge_processor, classifier_processor = classifier_processor):
     # Format the votes into a string suitable for the judge prompt
     all_votes = "\n".join([f"{vote.vendor} ({vote.model}): {vote.reasoning}" for vote in votes])
     
@@ -103,11 +114,12 @@ What are the models with the best reasoning? What is the final answer?
     judged_reasoning = await processor.process_async(judge_prompt, None)
     if DEBUG:
         print(f"{BLUE}JUDGED REASONING:{END} {judged_reasoning}")
-    judged_vote = await processor.classify_letter_async(prompt, judged_reasoning, image)
+    judged_vote = await classifier_processor.classify_letter_async(prompt, judged_reasoning, image)
     return judged_vote
 
 
 async def evaluate_benchmark(eval_data):
+    benchmark_start_time = time.time()
     scores = defaultdict(int)
     total = len(eval_data)
     judge_score = 0
@@ -134,15 +146,18 @@ async def evaluate_benchmark(eval_data):
                 
                 # Get and score judge's vote
                 try:
+                    judge_start_time = time.time()
                     final_judged_vote = await llm_judge(prompt, None, votes)
+                    judge_elapsed_time = time.time() - judge_start_time
                     if isinstance(final_judged_vote, str) and final_judged_vote.strip().upper() == expected_answer.strip().upper():
                         judge_score += 1
                 except Exception as e:
                     print(f"Error getting judge's vote: {e}")
                     final_judged_vote = "Error"
+                    judge_elapsed_time = 0
 
                 print(f"{BLUE}{BOLD}Majority Vote:{END}", majority_vote)
-                print(f"{GREEN}{BOLD}LLM Judge Vote:{END}", final_judged_vote)
+                print(f"{GREEN}{BOLD}LLM Judge Vote:{END}", final_judged_vote, f"{YELLOW}TIME:{END} {judge_elapsed_time:.2f}s")
                 print(f"{YELLOW}{BOLD}Expected Answer:{END}", expected_answer)
                 print("-" * 80)
             
@@ -162,6 +177,9 @@ async def evaluate_benchmark(eval_data):
     
     judge_accuracy = (judge_score / total) * 100
     print(f"LLM Judge: {judge_score}/{total} ({judge_accuracy:.2f}%)")
+    
+    total_time = time.time() - benchmark_start_time
+    print(f"\n{BOLD}Total Benchmark Time:{END} {total_time:.2f} seconds")
 
 async def main(prompt: str = None, run_benchmark: bool = False):
     if run_benchmark:

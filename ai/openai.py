@@ -70,8 +70,7 @@ class OpenAIProcessor(AIProcessor):
                     "properties": {
                         "answer": {
                             "type": "string",
-                            "description": "The answer letter (A, B, C, D, or E)",
-                            "enum": ["A", "B", "C", "D", "E"]
+                            "description": "The answer letter (A, B, C, D, E, etc)"
                         }
                     },
                     "required": ["answer"]
