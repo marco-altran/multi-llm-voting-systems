@@ -1,7 +1,9 @@
 import os
 import base64
-from ai import AIProcessor
+
 from openai import OpenAI
+
+from ai import AIProcessor
 
 
 class OpenAIProcessor(AIProcessor):
@@ -9,7 +11,7 @@ class OpenAIProcessor(AIProcessor):
         self.model = model
         self.client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
         self.vendor = "openai"
-        self.max_output_tokens = 1000
+        self.max_output_tokens = 8092
         self.temperature = 0
 
     def get_vendor(self) -> str:
@@ -42,8 +44,9 @@ class OpenAIProcessor(AIProcessor):
 
         response = self.client.chat.completions.create(
             model=self.model,
-            temperature=self.temperature,
-            max_tokens=self.max_output_tokens,
+            # temperature=self.temperature,
+            # max_tokens=self.max_output_tokens,
+            reasoning_effort="high",
             messages=messages
         )
         return response.choices[0].message.content.strip()
