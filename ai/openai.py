@@ -16,13 +16,8 @@ class OpenAIProcessor(AIProcessor):
         self.max_output_tokens = 8092
         self.temperature = 0
 
-    def get_vendor(self) -> str:
-        return self.vendor
-
-    def get_model_name(self) -> str:
-        return self.model
-
-    def process(self, text_prompt: str, image: bytes) -> str:
+    def _build_messages(self, text_prompt: str, image: bytes) -> list:
+        # Build the base message with the text prompt
         messages = [
             {
                 "role": "user",
@@ -31,18 +26,24 @@ class OpenAIProcessor(AIProcessor):
                 ]
             }
         ]
-
         if image:
             # Convert the image bytes to a base64-encoded data URL
-            image_base64 = base64.b64encode(image).decode(
-                'utf-8') if isinstance(image, bytes) else image
+            image_base64 = base64.b64encode(image).decode('utf-8') if isinstance(image, bytes) else image
             if not image_base64.startswith('data:'):
-                image_type = "image/jpeg" if image_base64.startswith(
-                    "/9j/") else "image/png"
+                image_type = "image/jpeg" if image_base64.startswith("/9j/") else "image/png"
                 image_base64 = f"data:{image_type};base64,{image_base64}"
-
             messages[0]["content"].append(
                 {"type": "image_url", "image_url": {"url": image_base64}})
+        return messages
+
+    def get_vendor(self) -> str:
+        return self.vendor
+
+    def get_model_name(self) -> str:
+        return self.model
+
+    def process(self, text_prompt: str, image: bytes) -> str:
+        messages = self._build_messages(text_prompt, image)
 
         response = self.client.chat.completions.create(
             model=self.model,
@@ -52,26 +53,7 @@ class OpenAIProcessor(AIProcessor):
         return response.choices[0].message.content.strip()
 
     async def process_async(self, text_prompt: str, image: bytes) -> str:
-        messages = [
-            {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": text_prompt},
-                ]
-            }
-        ]
-
-        if image:
-            # Convert the image bytes to a base64-encoded data URL
-            image_base64 = base64.b64encode(image).decode(
-                'utf-8') if isinstance(image, bytes) else image
-            if not image_base64.startswith('data:'):
-                image_type = "image/jpeg" if image_base64.startswith(
-                    "/9j/") else "image/png"
-                image_base64 = f"data:{image_type};base64,{image_base64}"
-
-            messages[0]["content"].append(
-                {"type": "image_url", "image_url": {"url": image_base64}})
+        messages = self._build_messages(text_prompt, image)
 
         response = await self.async_client.chat.completions.create(
             model=self.model,
