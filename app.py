@@ -23,7 +23,10 @@ class VoteResult(NamedTuple):
 
 load_dotenv()
 
-DEBUG = True
+DEBUG = False
+
+# Number of concurrent benchmark questions to process
+CONCURRENT_QUESTIONS = 4
 
 gemini_exp_1206 = create_ai_processor("google", "gemini-exp-1206")
 gemini_flash_2_thinking = create_ai_processor("google", "gemini-2.0-flash-thinking-exp-01-21")
@@ -53,7 +56,7 @@ llm_judge_processor = gemini_flash_2_thinking
 # llm_judge_processor = gpt4o_processor
 
 
-async def get_vote(voter, prompt: str, image: bytes, is_benchmark: bool = False, classifier_processor = classifier_processor) -> VoteResult:
+async def get_vote(voter, prompt: str, image: bytes, is_benchmark: bool = False, classifier_processor = classifier_processor, question_id: str = None) -> VoteResult:
     start_time = time.time()
     
     if is_benchmark:
@@ -66,13 +69,14 @@ async def get_vote(voter, prompt: str, image: bytes, is_benchmark: bool = False,
         vote = int(vote) if reasoning.isdigit() else reasoning
     
     elapsed_time = time.time() - start_time
+    question_info = f"Q{question_id}" if question_id else ""
     print(
-        f"{YELLOW}VENDOR:{END} {voter.get_vendor()} {YELLOW}MODEL:{END} {voter.get_model_name()} {YELLOW}VOTE:{END} {vote} {YELLOW}TIME:{END} {elapsed_time:.2f}s")
+        f"{YELLOW}VENDOR:{END} {voter.get_vendor()} {YELLOW}MODEL:{END} {voter.get_model_name()} {question_info} {YELLOW}VOTE:{END} {vote} {YELLOW}TIME:{END} {elapsed_time:.2f}s")
     return VoteResult(str(vote), str(reasoning), voter.get_vendor(), voter.get_model_name())
 
 
-async def majority_voting_system_votes(prompt: str, image: bytes, is_benchmark: bool = False):
-    vote_tasks = [get_vote(voter, prompt, image, is_benchmark) for voter in voters]
+async def majority_voting_system_votes(prompt: str, image: bytes, is_benchmark: bool = False, question_id: str = None):
+    vote_tasks = [get_vote(voter, prompt, image, is_benchmark, question_id=question_id) for voter in voters]
     votes = await asyncio.gather(*vote_tasks)
     
     # Extract just the votes from the results
@@ -118,56 +122,83 @@ What are the models with the best reasoning? What is the final answer?
     return judged_vote
 
 
+async def process_benchmark_question(item):
+    try:
+        prompt = item["prompt"]
+        expected_answer = item["answer"]
+        question_id = item["question_id"]
+        
+        print(f"\n{BOLD}Processing Question ID: {question_id}{END}")
+        if DEBUG:
+            print(f"{BLUE}Prompt: {prompt}{END}")
+            print(f"{YELLOW}Expected Answer: {expected_answer}{END}\n")
+
+        try:
+            majority_vote, votes = await majority_voting_system_votes(prompt, None, is_benchmark=True, question_id=question_id)
+            
+            # Score individual votes
+            question_scores = []
+            for vote in votes:
+                try:
+                    if isinstance(vote.vote, str) and vote.vote.strip().upper() == expected_answer.strip().upper():
+                        question_scores.append((f"{vote.vendor}_{vote.model}", 1))
+                    else:
+                        question_scores.append((f"{vote.vendor}_{vote.model}", 0))
+                except Exception as e:
+                    print(f"Error scoring vote from {vote.vendor}_{vote.model}: {e}")
+            
+            # Get and score judge's vote
+            try:
+                judge_start_time = time.time()
+                final_judged_vote = await llm_judge(prompt, None, votes)
+                judge_elapsed_time = time.time() - judge_start_time
+                judge_correct = 1 if isinstance(final_judged_vote, str) and final_judged_vote.strip().upper() == expected_answer.strip().upper() else 0
+            except Exception as e:
+                print(f"Error getting judge's vote for question {question_id}: {e}")
+                final_judged_vote = "Error"
+                judge_elapsed_time = 0
+                judge_correct = 0
+
+            print(f"{BOLD}Results for Question {question_id}:{END}")
+            print(f"  {BLUE}Majority Vote:{END} {majority_vote}")
+            print(f"  {GREEN}LLM Judge Vote:{END} {final_judged_vote} {YELLOW}TIME:{END} {judge_elapsed_time:.2f}s")
+            print(f"  {YELLOW}Expected Answer:{END} {expected_answer}")
+            print("-" * 80)
+            
+            return question_scores, judge_correct
+        
+        except Exception as e:
+            print(f"Error processing votes for question {question_id}: {e}")
+            return [], 0
+
+    except Exception as e:
+        print(f"Error processing benchmark item: {e}")
+        return [], 0
+
 async def evaluate_benchmark(eval_data):
     benchmark_start_time = time.time()
     scores = defaultdict(int)
     total = len(eval_data)
     judge_score = 0
-
-    for item in eval_data:
-        try:
-            prompt = item["prompt"]
-            expected_answer = item["answer"]
-            
-            print(f"\n{BOLD}Question ID: {item['question_id']}{END}")
-            print(f"{BLUE}Prompt: {prompt}{END}")
-            print(f"{YELLOW}Expected Answer: {expected_answer}{END}\n")
-
-            try:
-                majority_vote, votes = await majority_voting_system_votes(prompt, None, is_benchmark=True)
-                
-                # Score individual votes
-                for vote in votes:
-                    try:
-                        if isinstance(vote.vote, str) and vote.vote.strip().upper() == expected_answer.strip().upper():
-                            scores[f"{vote.vendor}_{vote.model}"] += 1
-                    except Exception as e:
-                        print(f"Error scoring vote from {vote.vendor}_{vote.model}: {e}")
-                
-                # Get and score judge's vote
-                try:
-                    judge_start_time = time.time()
-                    final_judged_vote = await llm_judge(prompt, None, votes)
-                    judge_elapsed_time = time.time() - judge_start_time
-                    if isinstance(final_judged_vote, str) and final_judged_vote.strip().upper() == expected_answer.strip().upper():
-                        judge_score += 1
-                except Exception as e:
-                    print(f"Error getting judge's vote: {e}")
-                    final_judged_vote = "Error"
-                    judge_elapsed_time = 0
-
-                print(f"{BLUE}{BOLD}Majority Vote:{END}", majority_vote)
-                print(f"{GREEN}{BOLD}LLM Judge Vote:{END}", final_judged_vote, f"{YELLOW}TIME:{END} {judge_elapsed_time:.2f}s")
-                print(f"{YELLOW}{BOLD}Expected Answer:{END}", expected_answer)
-                print("-" * 80)
-            
-            except Exception as e:
-                print(f"Error processing votes for question {item['question_id']}: {e}")
-                continue
-
-        except Exception as e:
-            print(f"Error processing benchmark item: {e}")
-            continue
+    
+    # Process questions in batches
+    for i in range(0, total, CONCURRENT_QUESTIONS):
+        batch = eval_data[i:i + CONCURRENT_QUESTIONS]
+        print(f"\n{BOLD}Processing batch {i//CONCURRENT_QUESTIONS + 1}: questions {i+1} to {min(i+CONCURRENT_QUESTIONS, total)} of {total}{END}")
+        
+        # Create tasks for concurrent processing
+        tasks = [process_benchmark_question(item) for item in batch]
+        
+        # Wait for all questions in the batch to complete
+        batch_results = await asyncio.gather(*tasks)
+        
+        # Update scores from batch results
+        for question_scores, judge_result in batch_results:
+            for model, score in question_scores:
+                scores[model] += score
+            judge_score += judge_result
+        
+        print(f"\n{BOLD}Batch {i//CONCURRENT_QUESTIONS + 1} completed{END}")
 
     # Print final scores
     print(f"\n{BOLD}Final Scores:{END}")
