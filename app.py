@@ -41,6 +41,27 @@ async def weighted_voting_system_votes(prompt: str, image: bytes, weights: List[
     return max(weighted_responses, key=weighted_responses.get)
 
 
+# New function: llm_judge
+async def llm_judge(prompt: str, image: bytes):
+    # Gather votes from all vendors
+    vote_tasks = [get_vote(voter, prompt, image) for voter in voters]
+    votes = await asyncio.gather(*vote_tasks)
+    
+    # Format the votes into a string suitable for the judge prompt
+    all_votes = "\n".join([f"{vendor} ({model}): {vote}" for vote, vendor, model in votes])
+    
+    # Build the judge prompt using the provided template
+    judge_prompt = f"""Given the question:
+{prompt}
+
+What vendor reasoning are more likely to be correct? What is the final answer?
+{all_votes}"""
+    
+    # Use the OpenAI processor as the LLM judge (you can choose which processor to use)
+    judged_vote = await openai_processor.process_async(judge_prompt, None)
+    return judged_vote
+
+
 # Example usage
 async def main():
     prompt = """how many r's in the word strawberry?
@@ -55,6 +76,10 @@ async def main():
 
     final_vote = await majority_voting_system_votes(prompt, image)
     print("Majority Voting Final Vote:", final_vote)
+    
+    # Get the judged vote using the LLM judge
+    final_judged_vote = await llm_judge(prompt, image)
+    print("LLM Judge Final Vote:", final_judged_vote)
 
 if __name__ == "__main__":
     asyncio.run(main())
