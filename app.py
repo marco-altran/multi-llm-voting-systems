@@ -26,7 +26,7 @@ load_dotenv()
 DEBUG = False
 
 # Number of concurrent benchmark questions to process
-CONCURRENT_QUESTIONS = 4
+CONCURRENT_QUESTIONS = 1
 
 gemini_exp_1206 = create_ai_processor("google", "gemini-exp-1206")
 gemini_flash_2_thinking = create_ai_processor("google", "gemini-2.0-flash-thinking-exp-01-21")
@@ -42,6 +42,8 @@ deepseek_r1_llama_70b_processor = create_ai_processor("openrouter", "deepseek/de
 voters = [
     # gemini_exp_1206,
     gemini_flash_2_thinking,
+    gemini_flash_2_thinking,
+    gemini_flash_2_thinking,
     # gemini_flash_1_5,
     # o3_mini_processor,
     # anthropic_processor,
@@ -53,7 +55,6 @@ voters = [
 ]
 classifier_processor = gpt4o_processor
 llm_judge_processor = gemini_flash_2_thinking
-# llm_judge_processor = gpt4o_processor
 
 
 async def get_vote(voter, prompt: str, image: bytes, is_benchmark: bool = False, classifier_processor = classifier_processor, question_id: str = None) -> VoteResult:
@@ -117,6 +118,7 @@ What are the models with the best reasoning? What is the final answer?
     # Use the provided processor as the LLM judge
     judged_reasoning = await processor.process_async(judge_prompt, None)
     if DEBUG:
+        print(f"{BLUE}JUDGED PROMPT:{END} {judge_prompt}")
         print(f"{BLUE}JUDGED REASONING:{END} {judged_reasoning}")
     judged_vote = await classifier_processor.classify_letter_async(prompt, judged_reasoning, image)
     return judged_vote
@@ -199,6 +201,8 @@ async def evaluate_benchmark(eval_data):
             judge_score += judge_result
         
         print(f"\n{BOLD}Batch {i//CONCURRENT_QUESTIONS + 1} completed{END}")
+        # For Gemini experimental models that are heavily rate limited, we need to sleep for a bit to avoid rate limiting
+        time.sleep(35)
 
     # Print final scores
     print(f"\n{BOLD}Final Scores:{END}")

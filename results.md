@@ -1018,3 +1018,173 @@ LLM Judge: 5/10 (50.00%)
 Total Benchmark Time: 220.03 seconds
 WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
 E0000 00:00:1738529075.307006 1314919 init.cc:232] grpc_wait_for_shutdown_with_timeout() timed out.
+
+### Parameters
+
+```python
+voters = [
+    # gemini_exp_1206,
+    gemini_flash_2_thinking,
+    gemini_flash_2_thinking,
+    gemini_flash_2_thinking,
+    # gemini_flash_1_5,
+    # o3_mini_processor,
+    # anthropic_processor,
+    # o1_processor,
+    # deepseek_r1_processor,
+    # deepseek_r1_qwen_32b_processor,
+    # deepseek_r1_llama_70b_processor,
+    # gpt4o_processor
+]
+classifier_processor = gpt4o_processor
+llm_judge_processor = gemini_flash_2_thinking
+```
+
+### Results
+
+% python app.py --benchmark
+
+Processing batch 1: questions 1 to 1 of 10
+
+Processing Question ID: 1
+WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+I0000 00:00:1738536069.043249 1420322 fork_posix.cc:75] Other threads are currently calling into gRPC, skipping fork() handlers
+I0000 00:00:1738536069.060710 1420322 fork_posix.cc:75] Other threads are currently calling into gRPC, skipping fork() handlers
+VENDOR: google MODEL: gemini-2.0-flash-thinking-exp-01-21 Q1 VOTE: B TIME: 10.89s
+VENDOR: google MODEL: gemini-2.0-flash-thinking-exp-01-21 Q1 VOTE: B TIME: 11.73s
+VENDOR: google MODEL: gemini-2.0-flash-thinking-exp-01-21 Q1 VOTE: B TIME: 14.09s
+Results for Question 1:
+  Majority Vote: B
+  LLM Judge Vote: B TIME: 6.08s
+  Expected Answer: B
+--------------------------------------------------------------------------------
+
+Batch 1 completed
+
+Processing batch 2: questions 2 to 2 of 10
+
+Processing Question ID: 2
+VENDOR: google MODEL: gemini-2.0-flash-thinking-exp-01-21 Q2 VOTE: F TIME: 8.59s
+VENDOR: google MODEL: gemini-2.0-flash-thinking-exp-01-21 Q2 VOTE: A TIME: 9.22s
+VENDOR: google MODEL: gemini-2.0-flash-thinking-exp-01-21 Q2 VOTE: F TIME: 10.65s
+Results for Question 2:
+  Majority Vote: F
+  LLM Judge Vote: A TIME: 11.29s
+  Expected Answer: A
+--------------------------------------------------------------------------------
+
+Batch 2 completed
+
+Processing batch 3: questions 3 to 3 of 10
+
+Processing Question ID: 3
+VENDOR: google MODEL: gemini-2.0-flash-thinking-exp-01-21 Q3 VOTE: C TIME: 8.21s
+VENDOR: google MODEL: gemini-2.0-flash-thinking-exp-01-21 Q3 VOTE: A TIME: 8.73s
+VENDOR: google MODEL: gemini-2.0-flash-thinking-exp-01-21 Q3 VOTE: C TIME: 9.09s
+Results for Question 3:
+  Majority Vote: C
+  LLM Judge Vote: A TIME: 8.08s
+  Expected Answer: A
+--------------------------------------------------------------------------------
+
+Batch 3 completed
+
+Processing batch 4: questions 4 to 4 of 10
+
+Processing Question ID: 4
+VENDOR: google MODEL: gemini-2.0-flash-thinking-exp-01-21 Q4 VOTE: C TIME: 25.13s
+VENDOR: google MODEL: gemini-2.0-flash-thinking-exp-01-21 Q4 VOTE: C TIME: 26.25s
+VENDOR: google MODEL: gemini-2.0-flash-thinking-exp-01-21 Q4 VOTE: C TIME: 33.90s
+Results for Question 4:
+  Majority Vote: C
+  LLM Judge Vote: C TIME: 17.14s
+  Expected Answer: C
+--------------------------------------------------------------------------------
+
+Batch 4 completed
+
+Processing batch 5: questions 5 to 5 of 10
+
+Processing Question ID: 5
+VENDOR: google MODEL: gemini-2.0-flash-thinking-exp-01-21 Q5 VOTE: B TIME: 6.91s
+VENDOR: google MODEL: gemini-2.0-flash-thinking-exp-01-21 Q5 VOTE: B TIME: 8.61s
+VENDOR: google MODEL: gemini-2.0-flash-thinking-exp-01-21 Q5 VOTE: B TIME: 9.89s
+Results for Question 5:
+  Majority Vote: B
+  LLM Judge Vote: B TIME: 8.25s
+  Expected Answer: B
+--------------------------------------------------------------------------------
+
+Batch 5 completed
+
+Processing batch 6: questions 6 to 6 of 10
+
+Processing Question ID: 6
+VENDOR: google MODEL: gemini-2.0-flash-thinking-exp-01-21 Q6 VOTE: F TIME: 7.84s
+VENDOR: google MODEL: gemini-2.0-flash-thinking-exp-01-21 Q6 VOTE: F TIME: 8.13s
+VENDOR: google MODEL: gemini-2.0-flash-thinking-exp-01-21 Q6 VOTE: F TIME: 10.00s
+Results for Question 6:
+  Majority Vote: F
+  LLM Judge Vote: F TIME: 7.28s
+  Expected Answer: A
+--------------------------------------------------------------------------------
+
+Batch 6 completed
+
+Processing batch 7: questions 7 to 7 of 10
+
+Processing Question ID: 7
+VENDOR: google MODEL: gemini-2.0-flash-thinking-exp-01-21 Q7 VOTE: B TIME: 13.01s
+VENDOR: google MODEL: gemini-2.0-flash-thinking-exp-01-21 Q7 VOTE: B TIME: 13.67s
+VENDOR: google MODEL: gemini-2.0-flash-thinking-exp-01-21 Q7 VOTE: B TIME: 13.67s
+Results for Question 7:
+  Majority Vote: B
+  LLM Judge Vote: B TIME: 7.49s
+  Expected Answer: C
+--------------------------------------------------------------------------------
+
+Batch 7 completed
+
+Processing batch 8: questions 8 to 8 of 10
+
+Processing Question ID: 8
+VENDOR: google MODEL: gemini-2.0-flash-thinking-exp-01-21 Q8 VOTE: F TIME: 8.07s
+VENDOR: google MODEL: gemini-2.0-flash-thinking-exp-01-21 Q8 VOTE: F TIME: 12.11s
+VENDOR: google MODEL: gemini-2.0-flash-thinking-exp-01-21 Q8 VOTE: F TIME: 15.61s
+Results for Question 8:
+  Majority Vote: F
+  LLM Judge Vote: F TIME: 5.76s
+  Expected Answer: F
+--------------------------------------------------------------------------------
+
+Batch 8 completed
+
+Processing batch 9: questions 9 to 9 of 10
+
+Processing Question ID: 9
+Error processing votes for question 9: 429 Resource has been exhausted (e.g. check quota).
+
+Batch 9 completed
+
+Processing batch 10: questions 10 to 10 of 10
+
+Processing Question ID: 10
+VENDOR: google MODEL: gemini-2.0-flash-thinking-exp-01-21 Q9 VOTE: A TIME: 31.36s
+VENDOR: google MODEL: gemini-2.0-flash-thinking-exp-01-21 Q9 VOTE: A TIME: 31.46s
+VENDOR: google MODEL: gemini-2.0-flash-thinking-exp-01-21 Q10 VOTE: A TIME: 12.97s
+VENDOR: google MODEL: gemini-2.0-flash-thinking-exp-01-21 Q10 VOTE: A TIME: 14.98s
+VENDOR: google MODEL: gemini-2.0-flash-thinking-exp-01-21 Q10 VOTE: A TIME: 19.99s
+Results for Question 10:
+  Majority Vote: A
+  LLM Judge Vote: A TIME: 7.03s
+  Expected Answer: B
+--------------------------------------------------------------------------------
+
+Batch 10 completed
+
+Final Scores:
+google_gemini-2.0-flash-thinking-exp-01-21: 14/10 (140.00%)
+LLM Judge: 6/10 (60.00%)
+
+Total Benchmark Time: 515.59 seconds
+E0000 00:00:1738536577.122960 1420318 init.cc:232] grpc_wait_for_shutdown_with_timeout() timed out.

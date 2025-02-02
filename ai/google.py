@@ -12,6 +12,7 @@ class GoogleProcessor(AIProcessor):
         genai.configure(api_key=os.environ.get("GOOGLE_API_KEY"))
         self.model = genai.GenerativeModel(self.model)
         self.vendor = "google"
+        self.temperature = 0.7
 
     def get_vendor(self) -> str:
         return self.vendor
@@ -27,10 +28,14 @@ class GoogleProcessor(AIProcessor):
         #     mime_type=image_type,
         #     data=image,
         # )
+        generation_config = {
+            "temperature": self.temperature,
+        }
 
         responses = self.model.generate_content(
             text_prompt,
             stream=True,
+            generation_config=generation_config,
         )
             
         result = ""
