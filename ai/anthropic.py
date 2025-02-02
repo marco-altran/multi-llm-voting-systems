@@ -2,6 +2,7 @@ from ai import AIProcessor
 import os
 import anthropic
 import base64
+import asyncio
 
 
 class AnthropicProcessor(AIProcessor):
@@ -48,3 +49,7 @@ class AnthropicProcessor(AIProcessor):
             ],
         )
         return message.content[0].text.strip()
+
+    async def process_async(self, text_prompt: str, image: bytes) -> str:
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, self.process, text_prompt, image)

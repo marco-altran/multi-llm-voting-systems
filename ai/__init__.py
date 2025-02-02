@@ -7,6 +7,10 @@ class AIProcessor(ABC):
         pass
 
     @abstractmethod
+    async def process_async(self, text_prompt: str, image: bytes) -> str:
+        pass
+
+    @abstractmethod
     def get_vendor(self) -> str:
         pass
 

@@ -1,5 +1,7 @@
 from dotenv import load_dotenv
 from ai.factory import create_ai_processor
+import asyncio
+from typing import List, Tuple
 
 load_dotenv()
 
@@ -11,40 +13,48 @@ anthropic_processor = create_ai_processor("anthropic", "claude-3-5-sonnet-latest
 voters = [google_processor, openai_processor, anthropic_processor, o1_processor]
 
 
-def majority_voting_system_votes(prompt, image):
-    votes = []
-    for voter in voters:
-        vote = voter.process(prompt, image)
-        votes.append(int(vote) if vote.isdigit() else vote)
-        print(
-            f"VENDOR: {voter.get_vendor()} MODEL: {voter.get_model_name()} VOTE: {vote}")
-    return max(set(votes), key=votes.count)
+async def get_vote(voter, prompt: str, image: bytes) -> Tuple[str, str, str]:
+    vote = await voter.process_async(prompt, image)
+    vote = int(vote) if vote.isdigit() else vote
+    print(
+        f"VENDOR: {voter.get_vendor()} MODEL: {voter.get_model_name()} VOTE: {vote}")
+    return vote, voter.get_vendor(), voter.get_model_name()
 
 
-def weighted_voting_system_votes(prompt, image, weights):
+async def majority_voting_system_votes(prompt: str, image: bytes):
+    vote_tasks = [get_vote(voter, prompt, image) for voter in voters]
+    votes = await asyncio.gather(*vote_tasks)
+    
+    # Extract just the votes from the results
+    vote_values = [vote[0] for vote in votes]
+    return max(set(vote_values), key=vote_values.count)
+
+
+async def weighted_voting_system_votes(prompt: str, image: bytes, weights: List[float]):
+    vote_tasks = [get_vote(voter, prompt, image) for voter in voters]
+    votes = await asyncio.gather(*vote_tasks)
+    
     weighted_responses = {}
-
-    for voter, weight in zip(voters, weights):
-        vote = voter.process(prompt, image)
-        vote = int(vote) if vote.isdigit() else vote
-        print(
-            f"VENDOR: {voter.get_vendor()} MODEL: {voter.get_model_name()} VOTE: {vote} WEIGHT: {weight}")
+    for (vote, vendor, model), weight in zip(votes, weights):
         weighted_responses[vote] = weighted_responses.get(vote, 0) + weight
 
     return max(weighted_responses, key=weighted_responses.get)
 
 
 # Example usage
-prompt = """A juggler throws a solid blue ball a meter in the air and then a solid purple ball (of the same size) two meters in the air. She then climbs to the top of a tall ladder carefully, balancing a yellow balloon on her head. Where is the purple ball most likely now, in relation to the blue ball?\nA. at the same height as the blue ball\nB. at the same height as the yellow balloon\nC. inside the blue ball\nD. above the yellow balloon\nE. below the blue ball\nF. above the blue ball\n
-"""
+async def main():
+    prompt = """how many r's in the word strawberry?
+    """
 
-with open("./images/coins.png", "rb") as image_file:
-    image = image_file.read()
-image = None
+    try:
+        with open("./images/coins.png", "rb") as image_file:
+            image = image_file.read()
+    except:
+        image = None
+    image = None
 
-final_vote = majority_voting_system_votes(prompt, image)
-print("Majority Voting Final Vote:", final_vote)
-# Example weights for Google Gemini, OpenAI GPT-4o, and Claude Sonnet respectively
-weights = [0.25, 0.25, 0.25, 0.25]
-# final_vote = weighted_voting_system_votes(prompt, image, weights)
-# print("Weighted Voting Final Vote:", final_vote)
+    final_vote = await majority_voting_system_votes(prompt, image)
+    print("Majority Voting Final Vote:", final_vote)
+
+if __name__ == "__main__":
+    asyncio.run(main())

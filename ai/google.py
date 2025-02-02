@@ -1,9 +1,6 @@
 import os
-
+import asyncio
 import google.generativeai as genai
-import vertexai
-from vertexai.generative_models import GenerativeModel, Part, FinishReason
-import vertexai.preview.generative_models as generative_models
 from ai import AIProcessor
 
 
@@ -30,13 +27,6 @@ class GoogleProcessor(AIProcessor):
             "temperature": self.temperature,
         }
 
-        safety_settings = {
-            generative_models.HarmCategory.HARM_CATEGORY_HATE_SPEECH: generative_models.HarmBlockThreshold.BLOCK_ONLY_HIGH,
-            generative_models.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: generative_models.HarmBlockThreshold.BLOCK_ONLY_HIGH,
-            generative_models.HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: generative_models.HarmBlockThreshold.BLOCK_ONLY_HIGH,
-            generative_models.HarmCategory.HARM_CATEGORY_HARASSMENT: generative_models.HarmBlockThreshold.BLOCK_ONLY_HIGH,
-        }
-
         # image_type = "image/jpeg" if image[:
         #                                    23] == b"data:image/jpeg;base64," else "image/png"
         # video1 = Part.from_data(
@@ -54,3 +44,7 @@ class GoogleProcessor(AIProcessor):
         for response in responses:
             result += response.text
         return result.strip()
+
+    async def process_async(self, text_prompt: str, image: bytes) -> str:
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, self.process, text_prompt, image)

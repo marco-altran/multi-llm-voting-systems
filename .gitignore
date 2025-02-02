@@ -1,2 +1,11 @@
 .env
 google_credentials.json
+.venv/
+.idea/.gitignore
+.idea/misc.xml
+.idea/modules.xml
+.idea/tutorial-llm-voting-systems.iml
+.idea/vcs.xml
+.idea/inspectionProfiles/profiles_settings.xml
+.idea/inspectionProfiles/Project_Default.xml
+ai/__pycache__/
