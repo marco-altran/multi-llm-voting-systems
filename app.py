@@ -1,5 +1,6 @@
 from dotenv import load_dotenv
 from ai.factory import create_ai_processor
+from ai.openai import OpenAIProcessor
 import asyncio
 from typing import List, Tuple, NamedTuple
 import argparse
@@ -15,34 +16,52 @@ END = "\033[0m"
 
 class VoteResult(NamedTuple):
     vote: str
+    reasoning: str
     vendor: str
     model: str
 
 load_dotenv()
 
-# TODO  Switch to gemini-2.0-flash-exp
-# TODO Add deepseek R1 through OpenRouter
-google_processor = create_ai_processor("google", "gemini-1.5-flash-001")
-openai_processor = create_ai_processor("openai", "o3-mini")
+DEBUG = False
+
+gemini_flash_2_thinking = create_ai_processor("google", "gemini-2.0-flash-thinking-exp-01-21")
+gemini_flash_1_5 = create_ai_processor("google", "gemini-1.5-flash")
+gpt4o_processor = create_ai_processor("openai", "gpt-4o")
+o3_mini_processor = create_ai_processor("openai", "o3-mini")
 o1_processor = create_ai_processor("openai", "o1")
 # anthropic_processor = create_ai_processor("anthropic", "claude-3-5-sonnet-20240620")
 anthropic_processor = create_ai_processor("anthropic", "claude-3-5-sonnet-latest")
-voters = [google_processor, openai_processor, anthropic_processor, o1_processor]
+deepseek_processor = create_ai_processor("openrouter", "deepseek/deepseek-r1:nitro")
+voters = [
+    gemini_flash_2_thinking,
+    gemini_flash_1_5,
+    o3_mini_processor,
+    anthropic_processor,
+    o1_processor,
+    # deepseek_processor,
+    gpt4o_processor
+]
+classifier_processor = gpt4o_processor
+llm_judge_processor = o3_mini_processor
+# llm_judge_processor = gpt4o_processor
 
-# TODO Make the individual votes spit a single letter so it can be scored. Only apply this when running the benchmark.
-# TODO Add langsmith to trace LLM calls
 
-
-async def get_vote(voter, prompt: str, image: bytes) -> VoteResult:
-    vote = await voter.process_async(prompt, image)
-    vote = int(vote) if vote.isdigit() else vote
+async def get_vote(voter, prompt: str, image: bytes, is_benchmark: bool = False, classifier_processor = classifier_processor) -> VoteResult:
+    if is_benchmark:
+        reasoning = await voter.process_async(prompt, image)
+        if DEBUG:
+            print(f"{BLUE}VENDOR:{END} {voter.get_vendor()} {BLUE}MODEL:{END} {voter.get_model_name()} {BLUE}REASONING:{END} {reasoning}")
+        vote = await classifier_processor.classify_letter_async(prompt, reasoning, image)
+    else:
+        reasoning = await voter.process_async(prompt, image)
+        vote = int(vote) if reasoning.isdigit() else reasoning
     print(
         f"{YELLOW}VENDOR:{END} {voter.get_vendor()} {YELLOW}MODEL:{END} {voter.get_model_name()} {YELLOW}VOTE:{END} {vote}")
-    return VoteResult(str(vote), voter.get_vendor(), voter.get_model_name())
+    return VoteResult(str(vote), str(reasoning), voter.get_vendor(), voter.get_model_name())
 
 
-async def majority_voting_system_votes(prompt: str, image: bytes):
-    vote_tasks = [get_vote(voter, prompt, image) for voter in voters]
+async def majority_voting_system_votes(prompt: str, image: bytes, is_benchmark: bool = False):
+    vote_tasks = [get_vote(voter, prompt, image, is_benchmark) for voter in voters]
     votes = await asyncio.gather(*vote_tasks)
     
     # Extract just the votes from the results
@@ -62,9 +81,10 @@ async def weighted_voting_system_votes(prompt: str, image: bytes, weights: List[
 
 
 # New function: llm_judge
-async def llm_judge(prompt: str, image: bytes, votes: List[VoteResult], processor=openai_processor):
+
+async def llm_judge(prompt: str, image: bytes, votes: List[VoteResult], processor=llm_judge_processor):
     # Format the votes into a string suitable for the judge prompt
-    all_votes = "\n".join([f"{vote.vendor} ({vote.model}): {vote.vote}" for vote in votes])
+    all_votes = "\n".join([f"{vote.vendor} ({vote.model}): {vote.reasoning}" for vote in votes])
     
     # Build the judge prompt using the provided template
 #     judge_prompt = f"""Given the question:
@@ -76,12 +96,14 @@ async def llm_judge(prompt: str, image: bytes, votes: List[VoteResult], processo
     judge_prompt = f"""Given the question:
 {prompt}
 
-What is the final answer? Only return the answer with a single letter, no other text.
-Answer:
+What are the models with the best reasoning? What is the final answer?
 {all_votes}"""
     
     # Use the provided processor as the LLM judge
-    judged_vote = await processor.process_async(judge_prompt, None)
+    judged_reasoning = await processor.process_async(judge_prompt, None)
+    if DEBUG:
+        print(f"{BLUE}JUDGED REASONING:{END} {judged_reasoning}")
+    judged_vote = await processor.classify_letter_async(prompt, judged_reasoning, image)
     return judged_vote
 
 
@@ -100,7 +122,7 @@ async def evaluate_benchmark(eval_data):
             print(f"{YELLOW}Expected Answer: {expected_answer}{END}\n")
 
             try:
-                majority_vote, votes = await majority_voting_system_votes(prompt, None)
+                majority_vote, votes = await majority_voting_system_votes(prompt, None, is_benchmark=True)
                 
                 # Score individual votes
                 for vote in votes:

@@ -11,8 +11,6 @@ class GoogleProcessor(AIProcessor):
         #               location=os.environ.get("VERTEX_AI_LOCATION"))
         genai.configure(api_key=os.environ.get("GOOGLE_API_KEY"))
         self.model = genai.GenerativeModel(self.model)
-        self.max_output_tokens = 1000
-        self.temperature = 0
         self.vendor = "google"
 
     def get_vendor(self) -> str:
@@ -22,10 +20,6 @@ class GoogleProcessor(AIProcessor):
         return self.model._model_name.split("/")[-1]
 
     def process(self, text_prompt: str, image: bytes) -> str:
-        generation_config = {
-            "max_output_tokens": self.max_output_tokens,
-            "temperature": self.temperature,
-        }
 
         # image_type = "image/jpeg" if image[:
         #                                    23] == b"data:image/jpeg;base64," else "image/png"
@@ -36,10 +30,9 @@ class GoogleProcessor(AIProcessor):
 
         responses = self.model.generate_content(
             text_prompt,
-            generation_config=generation_config,
             stream=True,
         )
-
+            
         result = ""
         for response in responses:
             result += response.text

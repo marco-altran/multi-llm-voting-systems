@@ -3,3 +3,4 @@ google-generativeai
 anthropic
 openai==1.61.0
 protobuf
+langsmith

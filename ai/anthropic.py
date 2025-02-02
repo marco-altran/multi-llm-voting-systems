@@ -1,7 +1,6 @@
 from ai import AIProcessor
 import os
 import anthropic
-import base64
 import asyncio
 
 
@@ -21,30 +20,12 @@ class AnthropicProcessor(AIProcessor):
     def process(self, text_prompt: str, image: bytes) -> str:
         message = self.client.messages.create(
             model=self.model,
-            max_tokens=1000,
+            max_tokens=8092,
             temperature=0,
             messages=[
                 {
                     "role": "user",
-                    "content": [
-                        {
-                            "type": "image",
-                            "source": {
-                                "type": "base64",
-                                "media_type": "image/png",
-                                "data": base64.b64encode(image).decode('utf-8')
-                            }
-                        },
-                        {
-                            "type": "text",
-                            "text": text_prompt
-                        }
-                    ] if image else [
-                        {
-                            "type": "text",
-                            "text": text_prompt
-                        }
-                    ]
+                    "content": text_prompt
                 }
             ],
         )

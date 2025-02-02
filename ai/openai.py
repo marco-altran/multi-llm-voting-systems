@@ -1,6 +1,6 @@
 import os
 import base64
-from openai import OpenAI
+from openai import NOT_GIVEN, OpenAI
 from openai import AsyncOpenAI
 
 from ai import AIProcessor
@@ -20,19 +20,9 @@ class OpenAIProcessor(AIProcessor):
         messages = [
             {
                 "role": "user",
-                "content": [
-                    {"type": "text", "text": text_prompt},
-                ]
+                "content": text_prompt
             }
         ]
-        if image:
-            # Convert the image bytes to a base64-encoded data URL
-            image_base64 = base64.b64encode(image).decode('utf-8') if isinstance(image, bytes) else image
-            if not image_base64.startswith('data:'):
-                image_type = "image/jpeg" if image_base64.startswith("/9j/") else "image/png"
-                image_base64 = f"data:{image_type};base64,{image_base64}"
-            messages[0]["content"].append(
-                {"type": "image_url", "image_url": {"url": image_base64}})
         return messages
 
     def get_vendor(self) -> str:
@@ -46,7 +36,7 @@ class OpenAIProcessor(AIProcessor):
 
         response = self.client.chat.completions.create(
             model=self.model,
-            reasoning_effort="high",
+            reasoning_effort="high" if self.model.startswith("o") else NOT_GIVEN,
             messages=messages
         )
         return response.choices[0].message.content.strip()
@@ -56,7 +46,43 @@ class OpenAIProcessor(AIProcessor):
 
         response = await self.async_client.chat.completions.create(
             model=self.model,
-            reasoning_effort="high",
+            reasoning_effort="high" if self.model.startswith("o") else NOT_GIVEN,
             messages=messages
         )
+        return response.choices[0].message.content.strip()
+
+    async def classify_letter_async(self, prompt: str, answer: str, image: bytes) -> str:
+        """Classify the answer as one of A, B, C, D, or E using structured output."""
+        base_messages = self._build_messages(prompt, image) + self._build_messages(answer, image)
+        messages = [
+            {"role": "system", "content": "Classify the answer in JSON format as one of the multiple choice options."}
+        ] + base_messages
+        
+        response = await self.async_client.chat.completions.create(
+            model=self.model,
+            messages=messages,
+            response_format={"type": "json_object"},
+            functions=[{
+                "name": "classify_answer",
+                "description": "Classify the answer in JSON format as one of the multiple choice options",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "answer": {
+                            "type": "string",
+                            "description": "The answer letter (A, B, C, D, or E)",
+                            "enum": ["A", "B", "C", "D", "E"]
+                        }
+                    },
+                    "required": ["answer"]
+                }
+            }],
+            function_call={"name": "classify_answer"}
+        )
+        
+        function_call = response.choices[0].message.function_call
+        if function_call and function_call.arguments:
+            import json
+            result = json.loads(function_call.arguments)
+            return result["answer"]
         return response.choices[0].message.content.strip()
