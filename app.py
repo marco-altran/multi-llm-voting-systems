@@ -4,6 +4,13 @@ import asyncio
 from typing import List, Tuple, NamedTuple
 import argparse
 
+# ANSI color codes for terminal output
+BLUE = "\033[94m"
+GREEN = "\033[92m"
+YELLOW = "\033[93m"
+BOLD = "\033[1m"
+END = "\033[0m"
+
 class VoteResult(NamedTuple):
     vote: str
     vendor: str
@@ -23,7 +30,7 @@ async def get_vote(voter, prompt: str, image: bytes) -> VoteResult:
     vote = await voter.process_async(prompt, image)
     vote = int(vote) if vote.isdigit() else vote
     print(
-        f"VENDOR: {voter.get_vendor()} MODEL: {voter.get_model_name()} VOTE: {vote}")
+        f"{YELLOW}VENDOR:{END} {voter.get_vendor()} {YELLOW}MODEL:{END} {voter.get_model_name()} {YELLOW}VOTE:{END} {vote}")
     return VoteResult(str(vote), voter.get_vendor(), voter.get_model_name())
 
 
@@ -78,11 +85,11 @@ async def main(prompt: str = None):
     image = None
 
     majority_vote, votes = await majority_voting_system_votes(prompt, image)
-    print("Majority Voting Final Vote:", majority_vote)
+    print(f"{BLUE}{BOLD}Majority Voting Final Vote:{END}", majority_vote)
     
     # Get the judged vote using the LLM judge
     final_judged_vote = await llm_judge(prompt, image, votes)
-    print("LLM Judge Final Vote:", final_judged_vote)
+    print(f"{GREEN}{BOLD}LLM Judge Final Vote:{END}", final_judged_vote)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Run voting system with optional prompt')
