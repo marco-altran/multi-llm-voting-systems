@@ -20,12 +20,17 @@ class VoteResult(NamedTuple):
 
 load_dotenv()
 
+# TODO  Switch to gemini-2.0-flash-exp
+# TODO Add deepseek R1 through OpenRouter
 google_processor = create_ai_processor("google", "gemini-1.5-flash-001")
 openai_processor = create_ai_processor("openai", "o3-mini")
 o1_processor = create_ai_processor("openai", "o1")
 # anthropic_processor = create_ai_processor("anthropic", "claude-3-5-sonnet-20240620")
 anthropic_processor = create_ai_processor("anthropic", "claude-3-5-sonnet-latest")
 voters = [google_processor, openai_processor, anthropic_processor, o1_processor]
+
+# TODO Make the individual votes spit a single letter so it can be scored. Only apply this when running the benchmark.
+# TODO Add langsmith to trace LLM calls
 
 
 async def get_vote(voter, prompt: str, image: bytes) -> VoteResult:
