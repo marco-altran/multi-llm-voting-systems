@@ -3,6 +3,8 @@ from ai.factory import create_ai_processor
 import asyncio
 from typing import List, Tuple, NamedTuple
 import argparse
+import json
+from collections import defaultdict
 
 # ANSI color codes for terminal output
 BLUE = "\033[94m"
@@ -60,10 +62,17 @@ async def llm_judge(prompt: str, image: bytes, votes: List[VoteResult], processo
     all_votes = "\n".join([f"{vote.vendor} ({vote.model}): {vote.vote}" for vote in votes])
     
     # Build the judge prompt using the provided template
+#     judge_prompt = f"""Given the question:
+# {prompt}
+
+# What is the final answer? Only return the answer with a single letter, no other text.
+# Answer:
+# {all_votes}"""
     judge_prompt = f"""Given the question:
 {prompt}
 
-What vendor reasoning are more likely to be correct? What is the final answer?
+What is the final answer? Only return the answer with a single letter, no other text.
+Answer:
 {all_votes}"""
     
     # Use the provided processor as the LLM judge
@@ -71,11 +80,75 @@ What vendor reasoning are more likely to be correct? What is the final answer?
     return judged_vote
 
 
-# Example usage
-async def main(prompt: str = None):
+async def evaluate_benchmark(eval_data):
+    scores = defaultdict(int)
+    total = len(eval_data)
+    judge_score = 0
+
+    for item in eval_data:
+        try:
+            prompt = item["prompt"]
+            expected_answer = item["answer"]
+            
+            print(f"\n{BOLD}Question ID: {item['question_id']}{END}")
+            print(f"{BLUE}Prompt: {prompt}{END}")
+            print(f"{YELLOW}Expected Answer: {expected_answer}{END}\n")
+
+            try:
+                majority_vote, votes = await majority_voting_system_votes(prompt, None)
+                
+                # Score individual votes
+                for vote in votes:
+                    try:
+                        if isinstance(vote.vote, str) and vote.vote.strip().upper() == expected_answer.strip().upper():
+                            scores[f"{vote.vendor}_{vote.model}"] += 1
+                    except Exception as e:
+                        print(f"Error scoring vote from {vote.vendor}_{vote.model}: {e}")
+                
+                # Get and score judge's vote
+                try:
+                    final_judged_vote = await llm_judge(prompt, None, votes)
+                    if isinstance(final_judged_vote, str) and final_judged_vote.strip().upper() == expected_answer.strip().upper():
+                        judge_score += 1
+                except Exception as e:
+                    print(f"Error getting judge's vote: {e}")
+                    final_judged_vote = "Error"
+
+                print(f"{BLUE}{BOLD}Majority Vote:{END}", majority_vote)
+                print(f"{GREEN}{BOLD}LLM Judge Vote:{END}", final_judged_vote)
+                print(f"{YELLOW}{BOLD}Expected Answer:{END}", expected_answer)
+                print("-" * 80)
+            
+            except Exception as e:
+                print(f"Error processing votes for question {item['question_id']}: {e}")
+                continue
+
+        except Exception as e:
+            print(f"Error processing benchmark item: {e}")
+            continue
+
+    # Print final scores
+    print(f"\n{BOLD}Final Scores:{END}")
+    for model, score in scores.items():
+        accuracy = (score / total) * 100
+        print(f"{model}: {score}/{total} ({accuracy:.2f}%)")
+    
+    judge_accuracy = (judge_score / total) * 100
+    print(f"LLM Judge: {judge_score}/{total} ({judge_accuracy:.2f}%)")
+
+async def main(prompt: str = None, run_benchmark: bool = False):
+    if run_benchmark:
+        try:
+            with open("simple_bench_public.json", "r") as f:
+                benchmark_data = json.load(f)
+                await evaluate_benchmark(benchmark_data["eval_data"])
+                return
+        except Exception as e:
+            print(f"Error loading benchmark data: {e}")
+            return
+
     if prompt is None:
-        prompt = """how many r's in the word strawberry?
-    """
+        prompt = """how many r's in the word strawberry?"""
 
     try:
         with open("./images/coins.png", "rb") as image_file:
@@ -87,13 +160,13 @@ async def main(prompt: str = None):
     majority_vote, votes = await majority_voting_system_votes(prompt, image)
     print(f"{BLUE}{BOLD}Majority Voting Final Vote:{END}", majority_vote)
     
-    # Get the judged vote using the LLM judge
     final_judged_vote = await llm_judge(prompt, image, votes)
     print(f"{GREEN}{BOLD}LLM Judge Final Vote:{END}", final_judged_vote)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Run voting system with optional prompt')
     parser.add_argument('--prompt', type=str, help='Input prompt for the voting system')
+    parser.add_argument('--benchmark', action='store_true', help='Run benchmark evaluation')
     args = parser.parse_args()
     
-    asyncio.run(main(args.prompt))
+    asyncio.run(main(args.prompt, args.benchmark))
