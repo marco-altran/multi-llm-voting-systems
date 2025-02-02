@@ -1,7 +1,12 @@
 from dotenv import load_dotenv
 from ai.factory import create_ai_processor
 import asyncio
-from typing import List, Tuple
+from typing import List, Tuple, NamedTuple
+
+class VoteResult(NamedTuple):
+    vote: str
+    vendor: str
+    model: str
 
 load_dotenv()
 
@@ -13,12 +18,12 @@ anthropic_processor = create_ai_processor("anthropic", "claude-3-5-sonnet-latest
 voters = [google_processor, openai_processor, anthropic_processor, o1_processor]
 
 
-async def get_vote(voter, prompt: str, image: bytes) -> Tuple[str, str, str]:
+async def get_vote(voter, prompt: str, image: bytes) -> VoteResult:
     vote = await voter.process_async(prompt, image)
     vote = int(vote) if vote.isdigit() else vote
     print(
         f"VENDOR: {voter.get_vendor()} MODEL: {voter.get_model_name()} VOTE: {vote}")
-    return vote, voter.get_vendor(), voter.get_model_name()
+    return VoteResult(str(vote), voter.get_vendor(), voter.get_model_name())
 
 
 async def majority_voting_system_votes(prompt: str, image: bytes):
@@ -26,8 +31,8 @@ async def majority_voting_system_votes(prompt: str, image: bytes):
     votes = await asyncio.gather(*vote_tasks)
     
     # Extract just the votes from the results
-    vote_values = [vote[0] for vote in votes]
-    return max(set(vote_values), key=vote_values.count)
+    vote_values = [vote.vote for vote in votes]
+    return max(set(vote_values), key=vote_values.count), votes
 
 
 async def weighted_voting_system_votes(prompt: str, image: bytes, weights: List[float]):
@@ -35,20 +40,16 @@ async def weighted_voting_system_votes(prompt: str, image: bytes, weights: List[
     votes = await asyncio.gather(*vote_tasks)
     
     weighted_responses = {}
-    for (vote, vendor, model), weight in zip(votes, weights):
-        weighted_responses[vote] = weighted_responses.get(vote, 0) + weight
+    for vote, weight in zip(votes, weights):
+        weighted_responses[vote.vote] = weighted_responses.get(vote.vote, 0) + weight
 
     return max(weighted_responses, key=weighted_responses.get)
 
 
 # New function: llm_judge
-async def llm_judge(prompt: str, image: bytes):
-    # Gather votes from all vendors
-    vote_tasks = [get_vote(voter, prompt, image) for voter in voters]
-    votes = await asyncio.gather(*vote_tasks)
-    
+async def llm_judge(prompt: str, image: bytes, votes: List[VoteResult], processor=openai_processor):
     # Format the votes into a string suitable for the judge prompt
-    all_votes = "\n".join([f"{vendor} ({model}): {vote}" for vote, vendor, model in votes])
+    all_votes = "\n".join([f"{vote.vendor} ({vote.model}): {vote.vote}" for vote in votes])
     
     # Build the judge prompt using the provided template
     judge_prompt = f"""Given the question:
@@ -57,8 +58,8 @@ async def llm_judge(prompt: str, image: bytes):
 What vendor reasoning are more likely to be correct? What is the final answer?
 {all_votes}"""
     
-    # Use the OpenAI processor as the LLM judge (you can choose which processor to use)
-    judged_vote = await openai_processor.process_async(judge_prompt, None)
+    # Use the provided processor as the LLM judge
+    judged_vote = await processor.process_async(judge_prompt, None)
     return judged_vote
 
 
@@ -74,11 +75,11 @@ async def main():
         image = None
     image = None
 
-    final_vote = await majority_voting_system_votes(prompt, image)
-    print("Majority Voting Final Vote:", final_vote)
+    majority_vote, votes = await majority_voting_system_votes(prompt, image)
+    print("Majority Voting Final Vote:", majority_vote)
     
     # Get the judged vote using the LLM judge
-    final_judged_vote = await llm_judge(prompt, image)
+    final_judged_vote = await llm_judge(prompt, image, votes)
     print("LLM Judge Final Vote:", final_judged_vote)
 
 if __name__ == "__main__":
