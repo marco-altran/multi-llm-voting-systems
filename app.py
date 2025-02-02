@@ -2,6 +2,7 @@ from dotenv import load_dotenv
 from ai.factory import create_ai_processor
 import asyncio
 from typing import List, Tuple, NamedTuple
+import argparse
 
 class VoteResult(NamedTuple):
     vote: str
@@ -64,8 +65,9 @@ What vendor reasoning are more likely to be correct? What is the final answer?
 
 
 # Example usage
-async def main():
-    prompt = """how many r's in the word strawberry?
+async def main(prompt: str = None):
+    if prompt is None:
+        prompt = """how many r's in the word strawberry?
     """
 
     try:
@@ -83,4 +85,8 @@ async def main():
     print("LLM Judge Final Vote:", final_judged_vote)
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    parser = argparse.ArgumentParser(description='Run voting system with optional prompt')
+    parser.add_argument('--prompt', type=str, help='Input prompt for the voting system')
+    args = parser.parse_args()
+    
+    asyncio.run(main(args.prompt))
